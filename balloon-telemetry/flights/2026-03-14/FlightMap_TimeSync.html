@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flight Comparison — Time Synchronized</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#070b0f;color:#bdd0e0;font-family:'IBM Plex Sans',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+  header{padding:9px 18px;background:#090e14;border-bottom:1px solid #182433;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px;}
+  .title-group{display:flex;align-items:baseline;gap:10px;}
+  h1{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#5ab0e8;}
+  .subtitle{font-family:'Space Mono',monospace;font-size:10px;color:#284060;}
+  .header-right{display:flex;align-items:center;gap:14px;}
+  .toggles{display:flex;gap:8px;}
+  .toggle-btn{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;border:1px solid;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.08em;cursor:pointer;transition:all 0.2s;background:transparent;text-transform:uppercase;}
+  .toggle-btn .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .toggle-btn.actual{border-color:#00c8ff;color:#00c8ff;}.toggle-btn.actual .dot{background:#00c8ff;}
+  .toggle-btn.predicted{border-color:#ff7d45;color:#ff7d45;}.toggle-btn.predicted .dot{background:#ff7d45;}
+  .toggle-btn.off{opacity:0.28;}
+
+  .main{flex:1;display:flex;overflow:hidden;position:relative;}
+  #map{flex:1;}
+
+  /* Legend top-left */
+  .map-legend{position:absolute;top:12px;left:12px;z-index:1000;background:rgba(7,11,15,0.93);border:1px solid #182433;border-radius:5px;padding:10px 14px;backdrop-filter:blur(8px);pointer-events:none;}
+  .legend-row{display:flex;align-items:center;gap:8px;margin:3px 0;}
+  .legend-line{width:24px;height:3px;border-radius:2px;}
+  .legend-label{font-family:'Space Mono',monospace;color:#506070;font-size:9px;}
+  .alt-bar{width:130px;height:6px;border-radius:3px;background:linear-gradient(to right,#00c8ff,#00ff88,#ffe000,#ff7d45,#ff2244);margin:7px 0 2px;}
+  .alt-labels{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:8px;color:#3a5a7a;}
+
+  /* Sidebar */
+  .panel{width:300px;flex-shrink:0;background:#090e14;border-left:1px solid #182433;display:flex;flex-direction:column;overflow:hidden;}
+  .panel-tabs{display:flex;border-bottom:1px solid #182433;flex-shrink:0;}
+  .tab{flex:1;padding:7px 3px;text-align:center;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.07em;text-transform:uppercase;color:#284060;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;}
+  .tab.active{color:#5ab0e8;border-bottom-color:#5ab0e8;}
+  .tab-content{display:none;flex:1;overflow-y:auto;padding:11px;flex-direction:column;gap:9px;}
+  .tab-content.active{display:flex;}
+
+  /* Live readout */
+  .readout-card{background:#0c1620;border:1px solid #182433;border-radius:5px;padding:9px 11px;}
+  .readout-header{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid #182433;display:flex;align-items:center;justify-content:space-between;}
+  .readout-header.actual-hdr{color:#00c8ff;}.readout-header.pred-hdr{color:#ff7d45;}
+  .readout-row{display:flex;justify-content:space-between;margin:3px 0;font-size:11px;}
+  .readout-key{color:#3a6080;font-size:10px;}
+  .readout-val{font-family:'Space Mono',monospace;font-weight:700;}
+  .readout-val.actual-val{color:#00c8ff;}.readout-val.pred-val{color:#ff7d45;}.readout-val.delta-val{color:#a0b8c8;}
+
+  .pre-launch-overlay{display:none;align-items:center;justify-content:center;padding:14px;background:rgba(255,125,53,0.07);border:1px solid rgba(255,125,53,0.2);border-radius:4px;font-family:'Space Mono',monospace;font-size:10px;color:#ff7d45;letter-spacing:0.08em;text-align:center;line-height:1.6;}
+
+  .delta-card{background:#0c1620;border:1px solid #182433;border-radius:5px;padding:9px 11px;}
+  .delta-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#284060;margin-bottom:7px;}
+  .delta-big{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:#a070ff;text-align:center;margin:3px 0;}
+  .delta-label{text-align:center;font-size:9px;color:#3a6080;font-family:'Space Mono',monospace;letter-spacing:0.08em;text-transform:uppercase;}
+
+  /* Charts */
+  .chart-wrap{position:relative;}
+  canvas.chart{width:100%!important;}
+  .chart-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:#284060;margin-bottom:5px;}
+
+  /* Wind table */
+  .wind-table-wrap{overflow-x:auto;}
+  .wind-table{width:100%;border-collapse:collapse;font-family:'Space Mono',monospace;font-size:10px;}
+  .wind-table th{padding:5px 4px;text-align:center;color:#284060;font-size:8px;letter-spacing:0.08em;text-transform:uppercase;border-bottom:1px solid #182433;font-weight:400;}
+  .wind-table th.left{text-align:left;}
+  .wind-table td{padding:3px 4px;border-bottom:1px solid #0d1a26;vertical-align:middle;}
+  .wind-table tr:last-child td{border-bottom:none;}
+  .level-badge{display:inline-block;padding:1px 5px;border-radius:2px;font-size:8px;background:#0f1e2e;color:#4a7aaa;border:1px solid #1a3050;white-space:nowrap;}
+  .alt-badge{color:#3a6080;font-size:9px;}
+  .wind-table input[type=number]{width:52px;background:#0d1a26;border:1px solid #1a3050;border-radius:3px;color:#a0c8e8;font-family:'Space Mono',monospace;font-size:10px;padding:3px 5px;outline:none;text-align:center;transition:border-color 0.15s;-moz-appearance:textfield;}
+  .wind-table input[type=number]:focus{border-color:#5ab0e8;}
+  .wind-table input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+  .wind-arrow{font-size:13px;transition:transform 0.3s;display:inline-block;}
+
+  /* Launch params */
+  .param-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .param-field label{display:block;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:0.1em;text-transform:uppercase;color:#3a6080;margin-bottom:3px;}
+  .param-field input,.param-field select{width:100%;background:#0f1e2e;border:1px solid #1a3050;border-radius:3px;color:#a0c8e8;font-family:'Space Mono',monospace;font-size:11px;padding:5px 7px;outline:none;transition:border-color 0.2s;}
+  .param-field input:focus,.param-field select:focus{border-color:#5ab0e8;}
+  .param-field.full{grid-column:span 2;}
+
+  /* Time sync UI */
+  .sync-card{background:#0c1620;border:1px solid #284060;border-radius:5px;padding:10px 11px;}
+  .sync-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#5ab0e8;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #182433;}
+  .sync-row{display:flex;align-items:center;gap:8px;margin:6px 0;}
+  .sync-label{font-family:'Space Mono',monospace;font-size:9px;color:#3a7aaa;width:90px;flex-shrink:0;}
+  .sync-val{font-family:'Space Mono',monospace;font-size:11px;color:#a0c8e8;font-weight:700;}
+  .sync-val.offset{color:#a070ff;}
+  .snap-btn{padding:4px 10px;background:#0f2040;border:1px solid #1a4070;border-radius:3px;color:#5ab0e8;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.08em;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+  .snap-btn:hover{background:#1a3060;border-color:#5ab0e8;}
+
+  .run-btn{width:100%;padding:9px;background:#0f2040;border:1px solid #1a4070;border-radius:4px;color:#5ab0e8;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;}
+  .run-btn:hover{background:#1a3060;border-color:#5ab0e8;}
+  .run-btn:disabled{opacity:0.35;cursor:not-allowed;}
+  .fetch-btn{width:100%;padding:7px;background:transparent;border:1px solid #1a3050;border-radius:4px;color:#4a7aaa;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;}
+  .fetch-btn:hover{border-color:#5ab0e8;color:#5ab0e8;}
+
+  .section-head{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#284060;padding:5px 0 3px;border-bottom:1px solid #182433;margin-bottom:3px;}
+  .note{font-size:10px;color:#3a6080;line-height:1.6;font-family:'Space Mono',monospace;}
+  .inline-status{font-family:'Space Mono',monospace;font-size:9px;color:#3a6080;margin-top:4px;min-height:14px;}
+  .inline-status.ok{color:#00c890;}.inline-status.err{color:#ff4060;}.inline-status.act{color:#5ab0e8;}
+
+  /* Phase badge */
+  .phase-badge{display:inline-block;padding:2px 7px;border-radius:3px;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:0.1em;text-transform:uppercase;}
+  .phase-ascent{background:rgba(0,200,255,0.12);color:#00c8ff;border:1px solid rgba(0,200,255,0.25);}
+  .phase-peak{background:rgba(255,125,53,0.18);color:#ff7d45;border:1px solid rgba(255,125,53,0.35);}
+  .phase-descent{background:rgba(255,34,68,0.12);color:#ff4466;border:1px solid rgba(255,34,68,0.25);}
+  .phase-ground{background:rgba(0,255,136,0.1);color:#00ff88;border:1px solid rgba(0,255,136,0.22);}
+  .phase-waiting{background:rgba(160,112,255,0.1);color:#a070ff;border:1px solid rgba(160,112,255,0.25);}
+
+  /* Slider */
+  .slider-bar{flex-shrink:0;background:#090e14;border-top:1px solid #182433;padding:10px 18px 12px;}
+  .slider-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;}
+  .time-display{display:flex;gap:14px;}
+  .time-field{text-align:center;}
+  .time-field-label{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:0.1em;text-transform:uppercase;color:#284060;}
+  .time-field-val{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:#8ac8f0;margin-top:1px;}
+  .time-field-val.hi{color:#ff7d45;}.time-field-val.sep{color:#a070ff;}.time-field-val.utc{color:#5ab0e8;font-size:11px;}
+  .controls{display:flex;align-items:center;gap:7px;}
+  .ctrl-btn{background:#0f1e2e;border:1px solid #1a3050;border-radius:4px;color:#5ab0e8;font-family:'Space Mono',monospace;font-size:11px;width:29px;height:27px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;flex-shrink:0;}
+  .ctrl-btn:hover{background:#182433;border-color:#5ab0e8;}
+  .speed-select{background:#0f1e2e;border:1px solid #1a3050;border-radius:4px;color:#5ab0e8;font-family:'Space Mono',monospace;font-size:9px;padding:3px 6px;outline:none;cursor:pointer;}
+
+  /* Track with launch marker */
+  .slider-track-wrap{position:relative;height:30px;display:flex;align-items:center;}
+  #timeSlider{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer;background:#0f1e2e;position:relative;z-index:2;}
+  #timeSlider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#5ab0e8;border:2px solid #090e14;box-shadow:0 0 8px rgba(90,176,232,0.5);cursor:grab;transition:transform 0.1s;}
+  #timeSlider::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1.2);}
+  #timeSlider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#5ab0e8;border:2px solid #090e14;cursor:grab;}
+  .slider-fill{position:absolute;left:0;top:50%;transform:translateY(-50%);height:4px;border-radius:2px 0 0 2px;background:linear-gradient(to right,#00c8ff,#5ab0e8);pointer-events:none;z-index:1;}
+
+  /* Launch marker on track */
+  .launch-marker{position:absolute;top:50%;transform:translate(-50%,-50%);width:3px;height:18px;background:#ff7d45;border-radius:2px;pointer-events:none;z-index:3;transition:left 0.2s;}
+  .launch-marker::after{content:'PRED T+0';position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:'Space Mono',monospace;font-size:7px;color:#ff7d45;white-space:nowrap;letter-spacing:0.06em;}
+  .launch-marker-line{position:absolute;top:50%;transform:translateY(-50%);width:0;border-left:1px dashed rgba(255,125,53,0.25);height:18px;pointer-events:none;z-index:1;}
+
+  ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:#090e14;}::-webkit-scrollbar-thumb{background:#182433;border-radius:2px;}
+  .leaflet-tooltip{background:rgba(7,11,15,0.95)!important;border:1px solid #1e3a5a!important;border-radius:3px!important;color:#90c0e0!important;font-family:'Space Mono',monospace!important;font-size:10px!important;padding:5px 9px!important;box-shadow:0 4px 14px rgba(0,0,0,0.6)!important;}
+  .leaflet-tooltip::before{display:none!important;}
+  .leaflet-popup-content-wrapper{background:rgba(7,11,15,0.97)!important;border:1px solid #1e3a5a!important;border-radius:5px!important;color:#90c0e0!important;font-family:'Space Mono',monospace!important;}
+  .leaflet-popup-tip{background:#090e14!important;}
+  .leaflet-popup-close-button{color:#4a7aaa!important;}
+  .leaflet-control-zoom a{background:#090e14!important;color:#5ab0e8!important;border-color:#182433!important;}
+  .leaflet-control-zoom a:hover{background:#182433!important;}
+  .leaflet-control-zoom{margin-top:92px!important;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-group">
+    <h1>▲ Flight Comparison</h1>
+    <span class="subtitle">Time-synchronized · Manual wind entry · Actual vs Predicted</span>
+  </div>
+  <div class="header-right">
+    <div class="toggles">
+      <button class="toggle-btn actual"    id="btn-actual"    onclick="toggleLayer('actual')"><span class="dot"></span>Actual</button>
+      <button class="toggle-btn predicted" id="btn-predicted" onclick="toggleLayer('predicted')"><span class="dot"></span>Predicted</button>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+
+  <!-- Legend top-left over map -->
+  <div class="map-legend">
+    <div class="legend-row"><div class="legend-line" style="background:linear-gradient(to right,#00c8ff,#ff2244)"></div><span class="legend-label">Actual path</span></div>
+    <div class="legend-row"><div class="legend-line" style="background:#ff7d45;height:0;border-top:2px dashed #ff7d45;"></div><span class="legend-label" style="margin-left:2px">Predicted path</span></div>
+    <div class="alt-bar"></div>
+    <div class="alt-labels"><span>0</span><span>6k</span><span>12k</span><span>18k</span><span>24k+</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-tabs">
+      <div class="tab active" id="tab-live"   onclick="showTab('live')">Live</div>
+      <div class="tab"        id="tab-chart"  onclick="showTab('chart')">Chart</div>
+      <div class="tab"        id="tab-winds"  onclick="showTab('winds')">Winds</div>
+      <div class="tab"        id="tab-launch" onclick="showTab('launch')">Launch</div>
+    </div>
+
+    <!-- Live tab -->
+    <div class="tab-content active" id="content-live">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span id="phase-badge" class="phase-badge phase-ground">ground</span>
+        <span style="font-family:'Space Mono',monospace;font-size:9px;color:#5ab0e8;" id="utc-label">—</span>
+      </div>
+
+      <div class="readout-card">
+        <div class="readout-header actual-hdr">
+          <span>◉ Actual</span>
+          <span style="font-size:8px;color:#284060;" id="a-elapsed-label">—</span>
+        </div>
+        <div class="readout-row"><span class="readout-key">Altitude</span><span class="readout-val actual-val" id="a-alt">—</span></div>
+        <div class="readout-row"><span class="readout-key">Lat / Lon</span><span class="readout-val actual-val" id="a-pos">—</span></div>
+        <div class="readout-row"><span class="readout-key">Speed</span><span class="readout-val actual-val" id="a-spd">—</span></div>
+      </div>
+
+      <!-- Pre-launch overlay shown when slider is before pred T+0 -->
+      <div class="pre-launch-overlay" id="pre-launch-overlay">
+        Prediction hasn't launched yet<br>
+        <span style="color:#6a4a30;font-size:9px;margin-top:4px;display:block" id="pre-launch-countdown"></span>
+        <button class="snap-btn" style="margin-top:8px" onclick="snapToLaunch()">→ Jump to Pred T+0</button>
+      </div>
+
+      <div id="pred-readout">
+        <div class="readout-card">
+          <div class="readout-header pred-hdr">
+            <span>◉ Predicted</span>
+            <span style="font-size:8px;color:#284060;" id="p-elapsed-label">—</span>
+          </div>
+          <div class="readout-row"><span class="readout-key">Altitude</span><span class="readout-val pred-val" id="p-alt">—</span></div>
+          <div class="readout-row"><span class="readout-key">Lat / Lon</span><span class="readout-val pred-val" id="p-pos">—</span></div>
+          <div class="readout-row"><span class="readout-key">Wind at alt</span><span class="readout-val pred-val" id="p-wind">—</span></div>
+        </div>
+        <div class="delta-card">
+          <div class="delta-title">Horizontal Separation</div>
+          <div class="delta-big" id="sep-km">—</div>
+          <div class="delta-label">km between tracks</div>
+          <div class="readout-row" style="margin-top:7px;"><span class="readout-key">Alt Δ</span><span class="readout-val delta-val" id="sep-alt">—</span></div>
+          <div class="readout-row"><span class="readout-key">Bearing</span><span class="readout-val delta-val" id="sep-bearing">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart tab -->
+    <div class="tab-content" id="content-chart">
+      <div class="chart-title">Altitude — both tracks vs UTC time</div>
+      <div class="chart-wrap"><canvas id="altChart" class="chart" height="200"></canvas></div>
+      <div class="chart-title" style="margin-top:10px">Horizontal Separation (km)</div>
+      <div class="chart-wrap"><canvas id="sepChart" class="chart" height="130"></canvas></div>
+    </div>
+
+    <!-- Winds tab -->
+    <div class="tab-content" id="content-winds">
+      <div class="section-head">Wind Profile — Enter Manually</div>
+      <div class="note" style="margin-bottom:4px">Speed in m/s · Direction = met convention (0°=from N, 90°=from E). Arrow shows wind direction.</div>
+      <button class="fetch-btn" id="fetch-btn" onclick="fetchAndFill()">⬇ Auto-fill from Open-Meteo (today)</button>
+      <div class="inline-status" id="fetch-status"></div>
+      <div class="wind-table-wrap">
+        <table class="wind-table" id="wind-table">
+          <thead>
+            <tr>
+              <th class="left">Level</th><th class="left">~Alt</th>
+              <th>Spd<br><span style="font-size:7px;opacity:0.6">m/s</span></th>
+              <th>Dir<br><span style="font-size:7px;opacity:0.6">°</span></th>
+              <th>→</th>
+            </tr>
+          </thead>
+          <tbody id="wind-tbody"></tbody>
+        </table>
+      </div>
+      <button class="run-btn" id="run-btn-w" onclick="runSim()">▶ Run Prediction</button>
+    </div>
+
+    <!-- Launch tab -->
+    <div class="tab-content" id="content-launch">
+
+      <!-- Time sync card — top of launch tab -->
+      <div class="sync-card">
+        <div class="sync-title">⏱ Time Synchronization</div>
+        <div class="note" style="margin-bottom:8px">
+          Set the UTC time when the balloon left the ground. The prediction's T+0 will be pinned to this moment in the actual data timeline, so both tracks move together on the slider.
+        </div>
+        <div class="param-grid">
+          <div class="param-field full">
+            <label>Actual launch time (UTC, 2026-03-14)</label>
+            <input type="time" id="p-launchtime" value="17:12:25" step="1"
+              style="color-scheme:dark;" onchange="updateLaunchOffset()">
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="sync-row">
+            <span class="sync-label">Data starts</span>
+            <span class="sync-val">15:52:27 UTC</span>
+          </div>
+          <div class="sync-row">
+            <span class="sync-label">Launch offset</span>
+            <span class="sync-val offset" id="sync-offset-display">+4,798 s (T+1:19:58)</span>
+          </div>
+          <div class="sync-row">
+            <span class="sync-label">Slider position</span>
+            <span class="sync-val offset" id="sync-pct-display">—</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="snap-btn" style="flex:1" onclick="snapToLaunch()">→ Snap slider to launch</button>
+          <button class="snap-btn" style="flex:1" onclick="snapToActualLaunch()">→ Snap to data start</button>
+        </div>
+      </div>
+
+      <div class="section-head">Balloon Parameters</div>
+      <div class="param-grid">
+        <div class="param-field"><label>Launch Lat</label><input id="p-lat" value="37.7426" type="number" step="0.0001"></div>
+        <div class="param-field"><label>Launch Lon</label><input id="p-lon" value="-122.4136" type="number" step="0.0001"></div>
+        <div class="param-field"><label>Launch Alt (m)</label><input id="p-launchalt" value="118" type="number" step="10"></div>
+        <div class="param-field"><label>Ascent (m/s)</label><input id="p-asc" value="5" type="number" step="0.5"></div>
+        <div class="param-field"><label>Burst Alt (m)</label><input id="p-burst" value="24000" type="number" step="500"></div>
+        <div class="param-field"><label>Descent (m/s)</label><input id="p-desc" value="10" type="number" step="0.5"></div>
+      </div>
+      <button class="run-btn" onclick="runSim()" style="margin-top:8px">▶ Run Prediction</button>
+
+      <div class="section-head" style="margin-top:10px">Sounding data sources</div>
+      <div class="note">
+        For March 14 2026 winds at Oakland:<br><br>
+        · <a href="https://rucsoundings.noaa.gov/" target="_blank" style="color:#5ab0e8">rucsoundings.noaa.gov</a> — enter OAK, set date<br>
+        · <a href="http://weather.uwyo.edu/upperair/sounding.html" target="_blank" style="color:#5ab0e8">weather.uwyo.edu</a> — station 72493, 12Z or 00Z<br><br>
+        Read off speed/dir at each pressure level and enter them in the Winds tab.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slider bar -->
+<div class="slider-bar">
+  <div class="slider-top">
+    <div class="time-display">
+      <div class="time-field"><div class="time-field-label">UTC Time</div><div class="time-field-val utc" id="disp-utc">—</div></div>
+      <div class="time-field"><div class="time-field-label">Actual Alt</div><div class="time-field-val hi" id="disp-a-alt">—</div></div>
+      <div class="time-field"><div class="time-field-label">Pred Alt</div><div class="time-field-val" style="color:#ff7d45" id="disp-p-alt">—</div></div>
+      <div class="time-field"><div class="time-field-label">Separation</div><div class="time-field-val sep" id="disp-sep">—</div></div>
+      <div class="time-field"><div class="time-field-label">Pred T+</div><div class="time-field-val" style="color:#a070ff" id="disp-p-elapsed">pre-launch</div></div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn" onclick="nudge(-1)" title="−60s">◁</button>
+      <button class="ctrl-btn" id="btn-play" onclick="togglePlay()">▶</button>
+      <button class="ctrl-btn" onclick="nudge(1)"  title="+60s">▷</button>
+      <select class="speed-select" id="speed-sel">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="5">5×</option>
+        <option value="10">10×</option>
+      </select>
+    </div>
+  </div>
+  <div class="slider-track-wrap">
+    <div class="slider-fill" id="sliderFill" style="width:0%"></div>
+    <!-- Launch marker: orange tick showing where pred T+0 is on the timeline -->
+    <div class="launch-marker" id="launchMarker" style="left:0%"></div>
+    <input type="range" id="timeSlider" min="0" max="10000" value="0" step="1">
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+
+// ── ACTUAL FLIGHT DATA ────────────────────────────────────────────────────────
+const ACTUAL_RAW = [{"time":"2026-03-14T15:52:27.101Z","lat":37.7625935,"lon":-122.4184751,"alt":34,"speed":0.0},{"time":"2026-03-14T15:53:29.079Z","lat":37.7625366,"lon":-122.418475,"alt":24,"speed":0.0},{"time":"2026-03-14T15:54:31.753Z","lat":37.7625286,"lon":-122.41846,"alt":21,"speed":0.0},{"time":"2026-03-14T15:58:32.427Z","lat":37.7625838,"lon":-122.4185618,"alt":54,"speed":0.0},{"time":"2026-03-14T16:02:32.526Z","lat":37.7625018,"lon":-122.4185096,"alt":15,"speed":0.0},{"time":"2026-03-14T16:03:45.395Z","lat":37.7624998,"lon":-122.4185076,"alt":14,"speed":0.0},{"time":"2026-03-14T16:41:39.093Z","lat":37.7428303,"lon":-122.4137651,"alt":118,"speed":4.0},{"time":"2026-03-14T17:12:25.254Z","lat":37.7428861,"lon":-122.4105665,"alt":301,"speed":20.0},{"time":"2026-03-14T17:13:16.333Z","lat":37.7419198,"lon":-122.4078613,"alt":438,"speed":14.0},{"time":"2026-03-14T17:14:19.128Z","lat":37.7407075,"lon":-122.4043796,"alt":594,"speed":12.0},{"time":"2026-03-14T17:16:01.791Z","lat":37.7382155,"lon":-122.3989036,"alt":832,"speed":35.0},{"time":"2026-03-14T17:17:25.266Z","lat":37.7337545,"lon":-122.393548,"alt":975,"speed":37.0},{"time":"2026-03-14T17:19:14.236Z","lat":37.7269821,"lon":-122.3892153,"alt":1177,"speed":29.0},{"time":"2026-03-14T17:21:20.087Z","lat":37.7166006,"lon":-122.3850588,"alt":1434,"speed":51.0},{"time":"2026-03-14T17:23:22.126Z","lat":37.7036721,"lon":-122.3784223,"alt":1698,"speed":57.0},{"time":"2026-03-14T17:25:25.836Z","lat":37.6914826,"lon":-122.3694166,"alt":1958,"speed":43.0},{"time":"2026-03-14T17:27:30.130Z","lat":37.6795173,"lon":-122.3611033,"alt":2227,"speed":38.0},{"time":"2026-03-14T17:29:33.879Z","lat":37.6681996,"lon":-122.3506898,"alt":2496,"speed":40.0},{"time":"2026-03-14T17:32:01.053Z","lat":37.6548961,"lon":-122.3376573,"alt":2790,"speed":52.0},{"time":"2026-03-14T17:34:27.863Z","lat":37.6409541,"lon":-122.3240003,"alt":3092,"speed":43.0},{"time":"2026-03-14T17:37:03.920Z","lat":37.628031,"lon":-122.3080075,"alt":3395,"speed":55.0},{"time":"2026-03-14T17:38:36.954Z","lat":37.6191725,"lon":-122.2945231,"alt":3584,"speed":67.0},{"time":"2026-03-14T17:40:41.967Z","lat":37.6077406,"lon":-122.2765013,"alt":3869,"speed":63.0},{"time":"2026-03-14T17:42:47.147Z","lat":37.594551,"lon":-122.2603223,"alt":4157,"speed":73.0},{"time":"2026-03-14T17:45:22.197Z","lat":37.5774583,"lon":-122.2398308,"alt":4503,"speed":66.0},{"time":"2026-03-14T17:47:47.436Z","lat":37.5630916,"lon":-122.2182773,"alt":4815,"speed":68.0},{"time":"2026-03-14T17:50:28.465Z","lat":37.550895,"lon":-122.1947305,"alt":5109,"speed":62.0},{"time":"2026-03-14T17:52:20.908Z","lat":37.5380698,"lon":-122.1778575,"alt":5378,"speed":56.0},{"time":"2026-03-14T17:55:27.184Z","lat":37.5100426,"lon":-122.1605473,"alt":5804,"speed":85.0},{"time":"2026-03-14T17:57:30.815Z","lat":37.4881836,"lon":-122.1487185,"alt":6059,"speed":73.0},{"time":"2026-03-14T17:59:35.291Z","lat":37.4659405,"lon":-122.1343598,"alt":6327,"speed":74.0},{"time":"2026-03-14T18:00:36.952Z","lat":37.4546613,"lon":-122.127085,"alt":6455,"speed":82.0},{"time":"2026-03-14T18:02:41.104Z","lat":37.4306563,"lon":-122.1124595,"alt":6752,"speed":101.0},{"time":"2026-03-14T18:04:45.276Z","lat":37.406934,"lon":-122.0976878,"alt":7003,"speed":81.0},{"time":"2026-03-14T18:07:19.822Z","lat":37.3823071,"lon":-122.077296,"alt":7319,"speed":79.0},{"time":"2026-03-14T18:08:53.964Z","lat":37.3693048,"lon":-122.0657288,"alt":7514,"speed":76.0},{"time":"2026-03-14T18:11:29.839Z","lat":37.345609,"lon":-122.0450931,"alt":7854,"speed":70.0},{"time":"2026-03-14T18:13:03.660Z","lat":37.3299116,"lon":-122.0349325,"alt":8068,"speed":81.0},{"time":"2026-03-14T18:16:09.034Z","lat":37.2941413,"lon":-122.0172148,"alt":8462,"speed":72.0},{"time":"2026-03-14T18:17:10.908Z","lat":37.2821443,"lon":-122.011855,"alt":8591,"speed":87.0},{"time":"2026-03-14T18:20:18.029Z","lat":37.243653,"lon":-121.9930373,"alt":9039,"speed":96.0},{"time":"2026-03-14T18:21:21.195Z","lat":37.2296455,"lon":-121.9869541,"alt":9202,"speed":98.0},{"time":"2026-03-14T18:23:55.757Z","lat":37.1908168,"lon":-121.9745386,"alt":9589,"speed":121.0},{"time":"2026-03-14T18:25:29.319Z","lat":37.1654768,"lon":-121.9688846,"alt":9826,"speed":109.0},{"time":"2026-03-14T18:27:32.888Z","lat":37.1312806,"lon":-121.9639113,"alt":10123,"speed":106.0},{"time":"2026-03-14T18:29:37.997Z","lat":37.0988581,"lon":-121.9595811,"alt":10426,"speed":112.0},{"time":"2026-03-14T18:31:41.806Z","lat":37.0656398,"lon":-121.9552915,"alt":10826,"speed":111.0},{"time":"2026-03-14T18:33:17.211Z","lat":37.0375576,"lon":-121.9526841,"alt":11036,"speed":123.0},{"time":"2026-03-14T18:36:54.739Z","lat":36.9795275,"lon":-121.939389,"alt":11533,"speed":94.0},{"time":"2026-03-14T18:40:31.071Z","lat":36.9325331,"lon":-121.8960071,"alt":12332,"speed":137.0},{"time":"2026-03-14T18:41:33.136Z","lat":36.920128,"lon":-121.8781371,"alt":12422,"speed":110.0},{"time":"2026-03-14T18:44:39.276Z","lat":36.8947195,"lon":-121.8366928,"alt":12869,"speed":86.0},{"time":"2026-03-14T18:45:41.081Z","lat":36.8903048,"lon":-121.8232516,"alt":13069,"speed":68.0},{"time":"2026-03-14T18:48:47.697Z","lat":36.8829313,"lon":-121.7702795,"alt":13584,"speed":116.0},{"time":"2026-03-14T18:49:50.384Z","lat":36.878843,"lon":-121.7486913,"alt":13828,"speed":102.0},{"time":"2026-03-14T18:52:54.933Z","lat":36.8623903,"lon":-121.684926,"alt":14342,"speed":118.0},{"time":"2026-03-14T18:53:58.495Z","lat":36.8561826,"lon":-121.6653993,"alt":14541,"speed":95.0},{"time":"2026-03-14T18:57:35.913Z","lat":36.8494543,"lon":-121.5999306,"alt":15103,"speed":106.0},{"time":"2026-03-14T18:58:10.726Z","lat":36.847938,"lon":-121.589315,"alt":15168,"speed":107.0},{"time":"2026-03-14T19:02:16.570Z","lat":36.826505,"lon":-121.520332,"alt":15898,"speed":77.0},{"time":"2026-03-14T19:04:36.025Z","lat":36.8207513,"lon":-121.4808375,"alt":16251,"speed":106.0},{"time":"2026-03-14T19:07:13.087Z","lat":36.8078285,"lon":-121.4380475,"alt":16721,"speed":80.0},{"time":"2026-03-14T19:10:49.876Z","lat":36.7963753,"lon":-121.3944646,"alt":17301,"speed":64.0},{"time":"2026-03-14T19:15:30.453Z","lat":36.7755075,"lon":-121.3487113,"alt":18108,"speed":56.0},{"time":"2026-03-14T19:20:09.403Z","lat":36.7565731,"lon":-121.3074345,"alt":18914,"speed":43.0},{"time":"2026-03-14T19:22:12.834Z","lat":36.7439526,"lon":-121.2992351,"alt":19258,"speed":26.0},{"time":"2026-03-14T19:25:50.075Z","lat":36.7334373,"lon":-121.2853953,"alt":19888,"speed":46.0},{"time":"2026-03-14T19:27:23.525Z","lat":36.727103,"lon":-121.275582,"alt":20209,"speed":61.0},{"time":"2026-03-14T19:29:28.413Z","lat":36.7169288,"lon":-121.266893,"alt":20608,"speed":21.0},{"time":"2026-03-14T19:33:35.348Z","lat":36.7021586,"lon":-121.2492641,"alt":21296,"speed":61.0},{"time":"2026-03-14T19:37:11.835Z","lat":36.6843283,"lon":-121.2360848,"alt":21925,"speed":49.0},{"time":"2026-03-14T19:40:18.789Z","lat":36.6710591,"lon":-121.2332201,"alt":22478,"speed":17.0},{"time":"2026-03-14T19:43:24.015Z","lat":36.658445,"lon":-121.2255546,"alt":23056,"speed":40.0},{"time":"2026-03-14T19:47:33.741Z","lat":36.6455248,"lon":-121.2268736,"alt":23801,"speed":12.0},{"time":"2026-03-14T19:49:06.659Z","lat":36.6402633,"lon":-121.2283245,"alt":24086,"speed":29.0},{"time":"2026-03-14T19:50:08.189Z","lat":36.6370633,"lon":-121.2299413,"alt":23235,"speed":31.0},{"time":"2026-03-14T19:51:10.095Z","lat":36.632438,"lon":-121.228584,"alt":21935,"speed":50.0},{"time":"2026-03-14T19:52:12.214Z","lat":36.6278186,"lon":-121.22386,"alt":20587,"speed":28.0},{"time":"2026-03-14T19:53:44.984Z","lat":36.6212395,"lon":-121.2170528,"alt":18639,"speed":59.0},{"time":"2026-03-14T19:54:47.761Z","lat":36.6166166,"lon":-121.2068463,"alt":17396,"speed":67.0},{"time":"2026-03-14T19:56:20.956Z","lat":36.610592,"lon":-121.1851616,"alt":16146,"speed":95.0},{"time":"2026-03-14T19:58:23.895Z","lat":36.6024591,"lon":-121.148352,"alt":13925,"speed":114.0},{"time":"2026-03-14T19:59:27.249Z","lat":36.5982676,"lon":-121.1334115,"alt":12767,"speed":77.0}];
+
+const T0_MS  = new Date(ACTUAL_RAW[0].time).getTime(); // 15:52:27 UTC in ms
+const TOTAL_SECS = (new Date(ACTUAL_RAW[ACTUAL_RAW.length-1].time).getTime() - T0_MS) / 1000;
+const ACTUAL = ACTUAL_RAW.map(p=>({...p, elapsed:(new Date(p.time).getTime()-T0_MS)/1000}));
+
+// ── LAUNCH OFFSET (seconds from T0 to when balloon lifted off) ────────────────
+// Default: 17:12:25 UTC = 4798s after 15:52:27
+let launchOffsetSecs = 4798;
+
+function updateLaunchOffset(){
+  const val = document.getElementById('p-launchtime').value; // "HH:MM:SS"
+  const parts = val.split(':').map(Number);
+  if(parts.length < 2) return;
+  const launchSecs = parts[0]*3600 + parts[1]*60 + (parts[2]||0);
+  const t0Secs     = 15*3600 + 52*60 + 27; // 15:52:27
+  launchOffsetSecs = launchSecs - t0Secs;
+  if(launchOffsetSecs < 0) launchOffsetSecs += 86400; // handle midnight wrap
+
+  const hh=Math.floor(launchOffsetSecs/3600), mm=Math.floor((launchOffsetSecs%3600)/60), ss=Math.floor(launchOffsetSecs%60);
+  document.getElementById('sync-offset-display').textContent =
+    `+${launchOffsetSecs.toLocaleString()} s  (T+${hh}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')})`;
+
+  const pct = (launchOffsetSecs / TOTAL_SECS * 100).toFixed(1);
+  document.getElementById('sync-pct-display').textContent = `${pct}% of slider`;
+  document.getElementById('launchMarker').style.left = pct + '%';
+}
+
+function snapToLaunch(){
+  setSliderFrac(launchOffsetSecs / TOTAL_SECS);
+  showTab('live');
+}
+function snapToActualLaunch(){
+  setSliderFrac(0);
+  showTab('live');
+}
+
+// ── PRESSURE LEVELS ───────────────────────────────────────────────────────────
+const LEVELS = [
+  {hPa:1000,alt:111},{hPa:850,alt:1500},{hPa:700,alt:3000},
+  {hPa:500,alt:5500},{hPa:400,alt:7200},{hPa:300,alt:9200},
+  {hPa:250,alt:10400},{hPa:200,alt:11800},{hPa:150,alt:13600},
+  {hPa:100,alt:16200},{hPa:70,alt:18500},{hPa:30,alt:23800}
+];
+const DEFAULTS=[{spd:3,dir:200},{spd:6,dir:210},{spd:9,dir:220},{spd:15,dir:240},{spd:20,dir:250},{spd:28,dir:260},{spd:32,dir:265},{spd:35,dir:270},{spd:30,dir:275},{spd:25,dir:280},{spd:18,dir:285},{spd:10,dir:290}];
+
+function buildWindTable(values){
+  const tbody=document.getElementById('wind-tbody');
+  tbody.innerHTML='';
+  LEVELS.forEach((lvl,i)=>{
+    const v=values?values[i]:DEFAULTS[i];
+    const row=document.createElement('tr');
+    row.innerHTML=`<td><span class="level-badge">${lvl.hPa} hPa</span></td><td><span class="alt-badge">${(lvl.alt/1000).toFixed(1)}km</span></td><td><input type="number" id="spd_${i}" value="${v.spd.toFixed(1)}" min="0" max="200" step="0.5" onchange="updateArrow(${i})"></td><td><input type="number" id="dir_${i}" value="${Math.round(v.dir)}" min="0" max="360" step="5" onchange="updateArrow(${i})"></td><td style="text-align:center"><span class="wind-arrow" id="arrow_${i}" style="transform:rotate(${Math.round(v.dir)}deg)">↓</span></td>`;
+    tbody.appendChild(row);
+  });
+}
+function updateArrow(i){document.getElementById('arrow_'+i).style.transform=`rotate(${parseFloat(document.getElementById('dir_'+i).value)||0}deg)`;}
+
+function readWindProfile(){
+  return LEVELS.map((lvl,i)=>{
+    const spd=parseFloat(document.getElementById('spd_'+i).value)||0;
+    const dir=parseFloat(document.getElementById('dir_'+i).value)||0;
+    const r=dir*Math.PI/180;
+    return {alt:lvl.alt,spd,dir,u:-spd*Math.sin(r),v:-spd*Math.cos(r)};
+  });
+}
+
+async function fetchAndFill(){
+  const btn=document.getElementById('fetch-btn'),st=document.getElementById('fetch-status');
+  btn.disabled=true; st.className='inline-status act'; st.textContent='Fetching…';
+  try {
+    const lat=parseFloat(document.getElementById('p-lat').value)||37.74;
+    const lon=parseFloat(document.getElementById('p-lon').value)||-122.41;
+    const lvls=[1000,850,700,500,400,300,250,200,150,100,70,30];
+    const uV=lvls.map(l=>`wind_speed_${l}hPa`).join(',');
+    const dV=lvls.map(l=>`wind_direction_${l}hPa`).join(',');
+    const resp=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${uV},${dV}&wind_speed_unit=ms&forecast_days=1&timezone=UTC`);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(data.error) throw new Error(data.reason);
+    const h=data.hourly,idx=17;
+    buildWindTable(lvls.map(l=>({spd:+(h[`wind_speed_${l}hPa`][idx]||0).toFixed(1),dir:Math.round(h[`wind_direction_${l}hPa`][idx]||0)})));
+    st.className='inline-status ok'; st.textContent='✓ Filled (GFS 17Z today)';
+  } catch(e){ st.className='inline-status err'; st.textContent='⚠ '+e.message; }
+  btn.disabled=false;
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+const MAX_ALT=24086;
+function altColor(alt){
+  const t=Math.min(alt/MAX_ALT,1);
+  const stops=[[0,[0,200,255]],[0.25,[0,255,136]],[0.5,[255,224,0]],[0.75,[255,125,53]],[1,[255,34,68]]];
+  let lo=stops[0],hi=stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){if(t>=stops[i][0]&&t<=stops[i+1][0]){lo=stops[i];hi=stops[i+1];break;}}
+  const s=(t-lo[0])/(hi[0]-lo[0]);
+  return `rgb(${Math.round(lo[1][0]+s*(hi[1][0]-lo[1][0]))},${Math.round(lo[1][1]+s*(hi[1][1]-lo[1][1]))},${Math.round(lo[1][2]+s*(hi[1][2]-lo[1][2]))})`;
+}
+function haversine(la1,lo1,la2,lo2){
+  const R=6371,dl=(la2-la1)*Math.PI/180,dL=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dl/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dL/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function bearing(la1,lo1,la2,lo2){
+  const dL=(lo2-lo1)*Math.PI/180,l1=la1*Math.PI/180,l2=la2*Math.PI/180;
+  const b=(Math.atan2(Math.sin(dL)*Math.cos(l2),Math.cos(l1)*Math.sin(l2)-Math.sin(l1)*Math.cos(l2)*Math.cos(dL))*180/Math.PI+360)%360;
+  return ['N','NE','E','SE','S','SW','W','NW'][Math.round(b/45)%8]+' ('+Math.round(b)+'°)';
+}
+function fmtElapsed(s){
+  if(s<0) return '—';
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=Math.floor(s%60);
+  return h>0?`T+${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`T+${m}:${String(sc).padStart(2,'0')}`;
+}
+function fmtUTC(elapsedSec){
+  const ms = T0_MS + elapsedSec*1000;
+  return new Date(ms).toISOString().replace('T',' ').replace(/\.\d+Z$/,' UTC');
+}
+
+function interpActual(el){
+  if(el<=0) return ACTUAL[0];
+  if(el>=TOTAL_SECS) return ACTUAL[ACTUAL.length-1];
+  for(let i=0;i<ACTUAL.length-1;i++){
+    const a=ACTUAL[i],b=ACTUAL[i+1];
+    if(el>=a.elapsed&&el<=b.elapsed){
+      const t=(el-a.elapsed)/(b.elapsed-a.elapsed);
+      return {lat:a.lat+t*(b.lat-a.lat),lon:a.lon+t*(b.lon-a.lon),alt:Math.round(a.alt+t*(b.alt-a.alt)),speed:a.speed+t*(b.speed-a.speed),elapsed:el,time:a.time};
+    }
+  }
+  return ACTUAL[ACTUAL.length-1];
+}
+
+function interpPred(predElapsed, pts, DT){
+  // predElapsed = elapsed seconds since prediction T+0
+  if(predElapsed < 0) return null; // pre-launch
+  const idx=Math.max(0,Math.min(Math.round(predElapsed/DT),pts.length-1));
+  return pts[idx];
+}
+
+function interpWind(profile,alt){
+  if(alt<=profile[0].alt) return profile[0];
+  if(alt>=profile[profile.length-1].alt) return profile[profile.length-1];
+  for(let i=0;i<profile.length-1;i++){
+    if(alt>=profile[i].alt&&alt<=profile[i+1].alt){
+      const t=(alt-profile[i].alt)/(profile[i+1].alt-profile[i].alt);
+      return {u:profile[i].u+t*(profile[i+1].u-profile[i].u),v:profile[i].v+t*(profile[i+1].v-profile[i].v),spd:profile[i].spd+t*(profile[i+1].spd-profile[i].spd),dir:profile[i].dir};
+    }
+  }
+  return profile[profile.length-1];
+}
+
+// ── SIMULATION ────────────────────────────────────────────────────────────────
+const DT=30;
+function simulate(cfg,profile){
+  let lat=cfg.lat,lon=cfg.lon,alt=cfg.launchAlt,bursted=false;
+  const pts=[{lat,lon,alt,elapsed:0,wind:{u:0,v:0,spd:0,dir:0}}];
+  for(let i=0;i<30000;i++){
+    const elapsed=(i+1)*DT;
+    if(!bursted){alt+=cfg.asc*DT;if(alt>=cfg.burst){alt=cfg.burst;bursted=true;}}
+    else{alt-=cfg.desc*DT;if(alt<=0){pts.push({lat,lon,alt:0,elapsed,wind:{u:0,v:0,spd:0,dir:0}});break;}}
+    const wind=interpWind(profile,alt);
+    lat+=(wind.v*DT)/111320;
+    lon+=(wind.u*DT)/(111320*Math.cos(lat*Math.PI/180));
+    pts.push({lat,lon,alt,elapsed,wind});
+  }
+  return pts;
+}
+
+// ── MAP ───────────────────────────────────────────────────────────────────────
+const map=L.map('map',{center:[37.2,-121.9],zoom:8,preferCanvas:true});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+const layerActualPath=L.layerGroup().addTo(map);
+const layerPredPath=L.layerGroup().addTo(map);
+const layerMarkers=L.layerGroup().addTo(map);
+const layerViz={actual:true,predicted:true};
+
+function toggleLayer(name){
+  layerViz[name]=!layerViz[name];
+  document.getElementById('btn-'+name).classList.toggle('off',!layerViz[name]);
+  layerViz[name]?(name==='actual'?layerActualPath:layerPredPath).addTo(map):map.removeLayer(name==='actual'?layerActualPath:layerPredPath);
+}
+function labelIcon(e,t,c){return L.divIcon({html:`<div style="font-size:14px">${e}</div><div style="font-family:'Space Mono',monospace;font-size:8px;color:${c};white-space:nowrap;text-shadow:0 1px 4px #000">${t}</div>`,className:'',iconAnchor:[10,0]});}
+function showTab(n){['live','chart','winds','launch'].forEach(t=>{document.getElementById('tab-'+t).classList.toggle('active',t===n);document.getElementById('content-'+t).classList.toggle('active',t===n);});}
+
+// Static actual path
+const peakIdx=ACTUAL.reduce((mi,p,i)=>p.alt>ACTUAL[mi].alt?i:mi,0);
+for(let i=0;i<ACTUAL.length-1;i++){
+  const p=ACTUAL[i],q=ACTUAL[i+1];
+  L.polyline([[p.lat,p.lon],[q.lat,q.lon]],{color:altColor((p.alt+q.alt)/2),weight:2.5,opacity:0.5}).addTo(layerActualPath);
+}
+L.marker([ACTUAL[0].lat,ACTUAL[0].lon],{icon:labelIcon('🚀','LAUNCH','#00ff88')}).addTo(layerActualPath);
+L.marker([ACTUAL[peakIdx].lat,ACTUAL[peakIdx].lon],{icon:labelIcon('🎈','PEAK 24,086m','#ff7d45')}).addTo(layerActualPath);
+
+// Moving cursors
+let actualCursor, predCursor, lineBetween;
+function createCursors(startLat, startLon){
+  layerMarkers.clearLayers();
+  actualCursor=L.circleMarker([ACTUAL[0].lat,ACTUAL[0].lon],{radius:9,fillColor:'#00c8ff',color:'#fff',weight:2.5,fillOpacity:0.95}).addTo(layerMarkers);
+  predCursor=L.circleMarker([startLat,startLon],{radius:9,fillColor:'#ff7d45',color:'#fff',weight:2.5,fillOpacity:0.95}).addTo(layerMarkers);
+  lineBetween=L.polyline([[ACTUAL[0].lat,ACTUAL[0].lon],[startLat,startLon]],{color:'#a070ff',weight:1.5,opacity:0,dashArray:'4,4'}).addTo(layerMarkers);
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+let altChart, sepChart;
+function buildCharts(predPts){
+  // Build aligned data: for each actual point, find corresponding pred point
+  const step=Math.max(1,Math.floor(ACTUAL.length/60));
+  const actSamples=ACTUAL.filter((_,i)=>i%step===0);
+  const labels=actSamples.map(p=>{
+    const h=new Date(T0_MS+p.elapsed*1000).toISOString().substr(11,5);
+    return h;
+  });
+  const actAlts=actSamples.map(p=>p.alt);
+  const predAlts=actSamples.map(p=>{
+    const predEl=p.elapsed-launchOffsetSecs;
+    const pp=interpPred(predEl,predPts,DT);
+    return pp?Math.round(pp.alt):null;
+  });
+  const seps=actSamples.map(p=>{
+    const predEl=p.elapsed-launchOffsetSecs;
+    const pp=interpPred(predEl,predPts,DT);
+    if(!pp) return null;
+    return +haversine(p.lat,p.lon,pp.lat,pp.lon).toFixed(2);
+  });
+
+  const cd={responsive:true,animation:false,plugins:{legend:{labels:{color:'#3a6080',font:{family:'Space Mono',size:9},boxWidth:12}},tooltip:{mode:'index',intersect:false}},scales:{x:{ticks:{color:'#2a4060',font:{size:8},maxRotation:0,maxTicksLimit:7},grid:{color:'#0d1c2c'}},y:{ticks:{color:'#3a6080',font:{size:9}},grid:{color:'#0d1c2c'}}}};
+  if(altChart) altChart.destroy();
+  altChart=new Chart(document.getElementById('altChart'),{type:'line',data:{labels,datasets:[{label:'Actual',data:actAlts,borderColor:'#00c8ff',backgroundColor:'rgba(0,200,255,0.06)',borderWidth:2,pointRadius:0,tension:0.3},{label:'Predicted',data:predAlts,borderColor:'#ff7d45',backgroundColor:'rgba(255,125,53,0.05)',borderWidth:2,pointRadius:0,tension:0.3,borderDash:[5,4],spanGaps:false}]},options:{...cd,scales:{x:{...cd.scales.x},y:{...cd.scales.y,ticks:{...cd.scales.y.ticks,callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v}}}}});
+  if(sepChart) sepChart.destroy();
+  sepChart=new Chart(document.getElementById('sepChart'),{type:'line',data:{labels,datasets:[{label:'Separation km',data:seps,borderColor:'#a070ff',backgroundColor:'rgba(160,112,255,0.07)',borderWidth:2,pointRadius:0,tension:0.3,fill:true,spanGaps:false}]},options:cd});
+}
+
+function updateChartCursor(frac){
+  [altChart,sepChart].forEach(ch=>{
+    if(!ch) return;
+    const idx=Math.round(frac*(ch.data.labels.length-1));
+    ch.options.plugins.annotation={annotations:{vl:{type:'line',xMin:idx,xMax:idx,borderColor:'rgba(255,255,255,0.22)',borderWidth:1.5}}};
+    ch.update('none');
+  });
+}
+
+// ── SLIDER STATE ──────────────────────────────────────────────────────────────
+let predPts=[], isPlaying=false, animFrame=null, lastRealTime=null;
+const slider=document.getElementById('timeSlider');
+const fill=document.getElementById('sliderFill');
+
+function getCurrentFrac(){return parseInt(slider.value)/parseInt(slider.max);}
+function setSliderFrac(frac){
+  frac=Math.max(0,Math.min(1,frac));
+  slider.value=Math.round(frac*parseInt(slider.max));
+  fill.style.width=(frac*100)+'%';
+  update(frac);
+}
+function togglePlay(){
+  isPlaying=!isPlaying;
+  document.getElementById('btn-play').textContent=isPlaying?'⏸':'▶';
+  if(isPlaying){lastRealTime=null;requestAnimationFrame(tick);}
+}
+function tick(ts){
+  if(!isPlaying) return;
+  if(lastRealTime===null) lastRealTime=ts;
+  const speed=parseFloat(document.getElementById('speed-sel').value);
+  const dt=(ts-lastRealTime)/1000;
+  lastRealTime=ts;
+  let frac=getCurrentFrac()+(dt*speed)/TOTAL_SECS;
+  if(frac>=1){frac=1;isPlaying=false;document.getElementById('btn-play').textContent='▶';}
+  setSliderFrac(frac);
+  if(isPlaying) animFrame=requestAnimationFrame(tick);
+}
+function nudge(dir){setSliderFrac(getCurrentFrac()+(dir*60)/TOTAL_SECS);}
+slider.addEventListener('input',()=>{fill.style.width=(getCurrentFrac()*100)+'%';update(getCurrentFrac());});
+
+// ── MAIN UPDATE ───────────────────────────────────────────────────────────────
+function update(frac){
+  if(!predPts.length) return;
+
+  const actualElapsed = frac * TOTAL_SECS;
+  const predElapsed   = actualElapsed - launchOffsetSecs; // seconds since pred T+0
+
+  const ap = interpActual(actualElapsed);
+  const pp = interpPred(predElapsed, predPts, DT);
+  const preLaunch = predElapsed < 0;
+
+  // Move actual cursor
+  actualCursor.setLatLng([ap.lat, ap.lon]);
+  actualCursor.setStyle({fillColor: altColor(ap.alt)});
+
+  // Phase of actual
+  const phase = ap.alt < 200 ? 'ground' : actualElapsed < ACTUAL[peakIdx].elapsed ? 'ascent' : ap.alt > MAX_ALT*0.99 ? 'peak' : 'descent';
+  const badge = document.getElementById('phase-badge');
+  badge.className = 'phase-badge phase-' + (preLaunch ? 'waiting' : phase);
+  badge.textContent = preLaunch ? 'pre-launch' : phase;
+
+  // UTC display
+  document.getElementById('utc-label').textContent = fmtUTC(actualElapsed).replace(' UTC','') + ' UTC';
+  document.getElementById('a-elapsed-label').textContent = fmtElapsed(actualElapsed);
+
+  // Actual readout
+  document.getElementById('a-alt').textContent = ap.alt.toLocaleString() + ' m (' + Math.round(ap.alt*3.281).toLocaleString() + ' ft)';
+  document.getElementById('a-pos').textContent = ap.lat.toFixed(4) + '°, ' + ap.lon.toFixed(4) + '°';
+  document.getElementById('a-spd').textContent = ap.speed.toFixed(1) + ' m/s';
+
+  // Pre-launch overlay
+  const overlay = document.getElementById('pre-launch-overlay');
+  const predReadout = document.getElementById('pred-readout');
+
+  if(preLaunch){
+    overlay.style.display = 'flex';
+    predReadout.style.display = 'none';
+    const secsUntil = Math.abs(predElapsed);
+    const m=Math.floor(secsUntil/60), s=Math.floor(secsUntil%60);
+    document.getElementById('pre-launch-countdown').textContent =
+      `Pred launch in ${m}m ${s}s — scrub forward or click below`;
+    predCursor.setStyle({opacity:0.3, fillOpacity:0.2});
+    lineBetween.setStyle({opacity:0});
+  } else {
+    overlay.style.display = 'none';
+    predReadout.style.display = 'block';
+    predCursor.setStyle({opacity:1, fillOpacity:0.95});
+    predCursor.setLatLng([pp.lat, pp.lon]);
+    lineBetween.setLatLngs([[ap.lat,ap.lon],[pp.lat,pp.lon]]);
+    lineBetween.setStyle({opacity:0.6});
+
+    const wind = pp.wind || {spd:0, dir:0};
+    document.getElementById('p-elapsed-label').textContent = fmtElapsed(predElapsed);
+    document.getElementById('p-alt').textContent = Math.round(pp.alt).toLocaleString() + ' m (' + Math.round(pp.alt*3.281).toLocaleString() + ' ft)';
+    document.getElementById('p-pos').textContent = pp.lat.toFixed(4) + '°, ' + pp.lon.toFixed(4) + '°';
+    document.getElementById('p-wind').textContent = wind.spd.toFixed(1) + ' m/s @ ' + Math.round(wind.dir||0) + '°';
+
+    const sep = haversine(ap.lat, ap.lon, pp.lat, pp.lon);
+    const altDelta = Math.round(pp.alt) - ap.alt;
+    document.getElementById('sep-km').textContent = sep.toFixed(2);
+    document.getElementById('sep-alt').textContent = (altDelta>=0?'+':'') + altDelta.toLocaleString() + ' m';
+    document.getElementById('sep-bearing').textContent = bearing(ap.lat, ap.lon, pp.lat, pp.lon);
+    document.getElementById('disp-sep').textContent = sep.toFixed(1) + 'km';
+  }
+
+  // Slider bar strip
+  document.getElementById('disp-utc').textContent = new Date(T0_MS+actualElapsed*1000).toISOString().substr(11,8) + 'Z';
+  document.getElementById('disp-a-alt').textContent = ap.alt.toLocaleString() + 'm';
+  document.getElementById('disp-p-alt').textContent = pp ? Math.round(pp.alt).toLocaleString()+'m' : '—';
+  document.getElementById('disp-p-elapsed').textContent = preLaunch ? 'pre-launch' : fmtElapsed(predElapsed);
+  fill.style.width = (frac*100) + '%';
+  updateChartCursor(frac);
+}
+
+// ── RUN SIMULATION ────────────────────────────────────────────────────────────
+function runSim(){
+  if(isPlaying) togglePlay();
+  document.getElementById('run-btn-w').disabled=true;
+  document.getElementById('run-btn-w').textContent='Running…';
+  layerPredPath.clearLayers();
+
+  const cfg={
+    lat:parseFloat(document.getElementById('p-lat').value),
+    lon:parseFloat(document.getElementById('p-lon').value),
+    launchAlt:parseFloat(document.getElementById('p-launchalt').value),
+    asc:parseFloat(document.getElementById('p-asc').value),
+    burst:parseFloat(document.getElementById('p-burst').value),
+    desc:parseFloat(document.getElementById('p-desc').value)
+  };
+  const profile = readWindProfile();
+  predPts = simulate(cfg, profile);
+
+  // Draw faded static predicted path
+  L.polyline(predPts.map(p=>[p.lat,p.lon]),{color:'#ff7d45',weight:2,opacity:0.45,dashArray:'7,5'}).addTo(layerPredPath);
+  const pk=predPts.reduce((m,p)=>p.alt>m.alt?p:m,predPts[0]);
+  const last=predPts[predPts.length-1];
+  L.marker([pk.lat,pk.lon],{icon:labelIcon('🟠','PRED PEAK','#ffaa55')}).addTo(layerPredPath);
+  L.marker([last.lat,last.lon],{icon:labelIcon('🔴','PRED LAND','#ff4466')}).addTo(layerPredPath);
+
+  createCursors(cfg.lat, cfg.lon);
+  buildCharts(predPts);
+  updateLaunchOffset(); // refresh marker position
+  setSliderFrac(launchOffsetSecs / TOTAL_SECS); // start slider at launch
+
+  const allPts=ACTUAL.map(p=>[p.lat,p.lon]).concat(predPts.map(p=>[p.lat,p.lon]));
+  map.fitBounds(L.latLngBounds(allPts).pad(0.07));
+  showTab('live');
+  document.getElementById('run-btn-w').disabled=false;
+  document.getElementById('run-btn-w').textContent='▶ Run Prediction';
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+buildWindTable(null);
+updateLaunchOffset();
+runSim();
+</script>
+</body>
+</html>
