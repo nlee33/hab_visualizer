@@ -19,6 +19,7 @@ BMP280 either not reading, not sending or configured improperly
 Possible next steps / goals:
   - Should remember to grab that dates wind graphs
   - Grab whatever data I can from the meshview page, and associated grafana charts
+  - Consider adding an APRS node after getting HAM general license for payload recovery purposes
   - Two seperate boards, one to act as only a radio and another to act as a flight controller.
       - Flight controller should be able to grab all of the readings, which it will then tell the radio to send.
       - Ideally will have the readings for:
