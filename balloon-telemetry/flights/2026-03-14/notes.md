@@ -2,7 +2,7 @@
 
 Flight launched with following hardware:
   - Seeed Studio XIAO ESP32s3
-  - WIO SX1626 LoRa Hat
+  - WIO SX1262 LoRa Hat
   - BMP280 Environmental Sensor
   - ATGM336H GPS
 
