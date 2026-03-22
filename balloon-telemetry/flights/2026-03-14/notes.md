@@ -25,7 +25,9 @@ Possible next steps / goals:
         - Temperature
         - Humidity
         - Pressure
-        - Lat
-        - Long
-        - Acceleration / Velocity
+        - Latitude
+        - Longitude
         - Battery life
+        - Consider adding an IMU for DoF readings to check if payload enclosure is properly doing the spiralling motion and creating drag, as well as providing acceleration/velocity readings.
+  - Consider switching / adding a Meshcore node, as it is able to create rooms for nodes to live in as well as store   the last 30 messages sent, which will be helpful in logging the data from the ground station receiver.
+  - 
