@@ -1,9 +1,9 @@
 DATASHEETS FOR ALL FLIGHT HARDWARE INCLUDED ON THIS FLIGHT AND ASSOCIATED FIRMWARES:
 
-- ATGM335H Datasheet 
+- ATGM335H Datasheet (GPS SENSOR)
 (https://makersportal.com/shop/mini-gps-module-atgm336h-antenna?srsltid=AfmBOoobBvxZfUyOloBUQOz9btozQkY7G44TTOUzU3FDiriqSbVOy6-J)
 
-- BMP280 Datasheet
+- BMP280 Datasheet (TEMPERATURE, HUMIDITY, PRESSURE SENSOR)
 (https://handsontec.com/dataspecs/sensor/BMP280.pdf)
 
 - SEEED STUDIO XIAO ESP32S3 AND WIO SX1262 LORA HAT
