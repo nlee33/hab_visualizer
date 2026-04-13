@@ -1,5 +1,6 @@
 # hab_visualizer
-visualize the difference between multiple launches and paths
-also includes telemetry from sensors
+- visualize the difference between multiple launches and trajectories
+- includes telemetry from sensors
+- predicted path from launch point today, via OpenMeteo API
 
 OPEN LINK https://nlee33.github.io/hab_visualizer/hab_flights.html
