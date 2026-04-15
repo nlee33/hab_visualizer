@@ -1,4 +1,4 @@
-Core Payload Configuration
+**Core Payload Configuration**
 
 - Seeed Studio XIAO ESP32
 - WIO SX1272 LORA HAT FOR XIAO ESP32
@@ -7,7 +7,7 @@ Core Payload Configuration
 - 3.7V BATTERY CELL
 
 
-DATASHEETS FOR ALL FLIGHT HARDWARE INCLUDED ON THIS FLIGHT AND ASSOCIATED FIRMWARES:
+**DATASHEETS FOR ALL FLIGHT HARDWARE INCLUDED ON THIS FLIGHT :**
 
 ATGM335H Datasheet (GPS SENSOR) 
 (https://makersportal.com/shop/mini-gps-module-atgm336h-antenna?srsltid=AfmBOoobBvxZfUyOloBUQOz9btozQkY7G44TTOUzU3FDiriqSbVOy6-J)
@@ -17,6 +17,8 @@ BMP280 Datasheet (TEMPERATURE, HUMIDITY, PRESSURE SENSOR)
 
 SEEED STUDIO XIAO ESP32S3 AND WIO SX1262 LORA HAT 
 (https://www.seeedstudio.com/Wio-SX1262-with-XIAO-ESP32S3-p-5982.html?srsltid=AfmBOop-nsLezZS99FMytZOOz2uLRmJWQlvs-gcKmREAs2LKi5-Y7CN2)
+
+  - FLASHED USING THE STOCK MESHTASTIC FIRMWARE THROUGH WEB FLASHER.
 
 MS5611 BAROMETER 
 (https://www.hpinfotech.ro/MS5611-01BA03.pdf)
